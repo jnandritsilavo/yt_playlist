@@ -1,0 +1,18 @@
+# Vidéos téléchargées
+downloads/
+
+# Binaire Deno posé à côté du script
+deno.exe
+deno
+
+# Cookies exportés
+cookies.txt
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Divers
+.DS_Store
