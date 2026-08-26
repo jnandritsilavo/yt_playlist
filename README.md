@@ -1,115 +1,154 @@
-# YT Playlist Downloader
+# yt_playlist
 
-Petit outil en ligne de commande pour télécharger une playlist YouTube en HD.
-Chaque vidéo est numérotée selon son ordre dans la playlist et rangée dans un
-dossier portant le nom de la playlist. L'image et le son sont réunis dans un
-seul fichier MP4.
+An interactive command-line downloader for YouTube playlists, built on top of
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). It fetches every video of a playlist
+in HD, merges video and audio into a single MP4, and names the files so they stay
+in playlist order.
 
-```
-downloads/
-└── Nom de la playlist/
-    ├── 01 - Première vidéo.mp4
-    ├── 02 - Deuxième vidéo.mp4
-    └── 03 - Troisième vidéo.mp4
-```
+The script is a thin, opinionated wrapper: all the defaults that usually take a
+long command line (format selection, output template, retries, ffmpeg location)
+are already set.
 
-## Ce que ça fait
+## Features
 
-- Téléchargement en 1080p par défaut (réglable).
-- Numérotation 01, 02, 03… dans l'ordre exact de la playlist.
-- Un dossier créé automatiquement par playlist.
-- Image et son fusionnés dans un seul `.mp4`, avec un audio AAC lisible partout.
-- Mode interactif : on colle une URL, ça télécharge, puis ça en redemande une
-  autre, jusqu'à ce qu'on quitte.
-- Gère les erreurs `HTTP 403` que YouTube renvoie depuis 2026 (via Deno).
-- Trouve `ffmpeg` et `deno` tout seul, y compris s'ils sont posés à côté du script.
+- 1080p by default, with automatic fallback to the best available quality below that limit.
+- Video and audio merged into one MP4 file via ffmpeg.
+- Files numbered `01 - Title.mp4`, `02 - Title.mp4`, and so on, following the playlist order.
+- Each playlist stored in its own folder, named after the playlist.
+- Interactive loop: paste a URL, wait for the download, paste the next one.
+- Resilient by design: a video that fails is skipped instead of aborting the whole playlist.
+- Optional AAC re-encoding for players that cannot decode Opus audio.
+- Optional cookie support for age-restricted or private videos.
 
-## Prérequis
+## Requirements
 
-- Python 3.10 ou plus récent
-- yt-dlp (le moteur de téléchargement)
-- ffmpeg (pour fusionner image et son)
-- Deno (pour résoudre les signatures YouTube et éviter les erreurs 403)
+- Python 3.8 or newer
+- yt-dlp and imageio-ffmpeg (installed below)
+- Deno, used to solve YouTube's JavaScript challenges
 
-## Installation
-
-Installer Python et les paquets :
+Install the Python dependencies:
 
 ```bash
 pip install -U --pre "yt-dlp[default]" imageio-ffmpeg
 ```
 
-`imageio-ffmpeg` embarque un ffmpeg prêt à l'emploi. Si vous préférez un ffmpeg
-système : `winget install Gyan.FFmpeg` sous Windows, `brew install ffmpeg` sous
-macOS, `sudo apt install ffmpeg` sous Linux.
+### Deno
 
-Installer Deno (obligatoire depuis 2026, sinon YouTube renvoie des erreurs 403) :
+Since 2026, YouTube requires a JavaScript runtime to resolve player signatures.
+Without Deno, most downloads fail with `HTTP Error 403: Forbidden`.
 
-```bash
-winget install DenoLand.Deno              # Windows, WinGet
-irm https://deno.land/install.ps1 | iex   # Windows, PowerShell
-curl -fsSL https://deno.land/install.sh | sh   # macOS / Linux
+Windows:
+
+```powershell
+winget install DenoLand.Deno
 ```
 
-Si les installeurs sont bloqués (poste d'entreprise par exemple), téléchargez
-`deno.exe` depuis les releases GitHub de Deno et posez-le directement dans le
-dossier du script : il sera détecté automatiquement. Pensez à rouvrir le
-terminal après l'installation.
+or
 
-## Utilisation
+```powershell
+irm https://deno.land/install.ps1 | iex
+```
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+```
+
+As a last resort, download `deno.exe` from the
+[Deno releases page](https://github.com/denoland/deno/releases) and place it in the
+same folder as the script; the script adds its own directory to `PATH` at startup.
+Reopen your terminal after installing.
+
+### ffmpeg
+
+ffmpeg is used to merge the separate video and audio streams. If a system-wide
+ffmpeg is not found, the script falls back to the binary shipped with
+`imageio-ffmpeg`, so no manual installation is normally required. If neither is
+available, the script still runs but downloads a single pre-muxed stream, which
+usually caps quality at 720p.
+
+## Usage
 
 ```bash
 python yt_playlist.py
 ```
 
-Au démarrage, le script affiche s'il a bien trouvé ffmpeg et Deno. Collez ensuite
-une URL de playlist et appuyez sur Entrée. Une fois le téléchargement terminé, il
-en redemande une autre. Tapez `q` ou laissez vide pour quitter.
+The script prints a short diagnostic (ffmpeg, Deno, cookies), then waits for input:
 
 ```
-URL ▶  https://www.youtube.com/playlist?list=XXXXXXXX
+URL >  https://www.youtube.com/playlist?list=PL...
 ```
 
-## Réglages
+Press Enter to start. When the download finishes, the prompt returns for the next
+URL. Type `q`, `quit`, `exit`, or submit an empty line to leave. `Ctrl+C` during a
+download cancels that download only and returns to the prompt.
 
-Les options se trouvent en haut de `yt_playlist.py` :
+Single video URLs work too; they are simply treated as a playlist of one.
 
-| Variable               | Défaut       | Description |
-|------------------------|--------------|-------------|
-| `QUALITY`              | `1080`       | Hauteur max en pixels (480, 720, 1080, 2160). |
-| `OUTPUT_DIR`           | `"downloads"`| Dossier de destination. |
-| `COOKIES_FILE`         | `None`       | Chemin d'un `cookies.txt` pour les vidéos privées ou avec limite d'âge. |
-| `COOKIES_FROM_BROWSER` | `None`       | `"chrome"`, `"edge"`, `"firefox"`… Fermez le navigateur avant de lancer. |
-| `FORCE_AAC`            | `False`      | Ré-encode l'audio en AAC si une vidéo reste muette. |
+## Output layout
 
-## Problèmes courants
+```
+downloads/
+  My Playlist Name/
+    01 - First video.mp4
+    02 - Second video.mp4
+    03 - Third video.mp4
+```
 
-**`HTTP Error 403: Forbidden`**
-Deno n'est pas installé ou pas trouvé. Installez-le, rouvrez le terminal, et
-mettez yt-dlp à jour avec `yt-dlp --update-to nightly`. Sur un réseau
-d'entreprise, ce type de trafic est parfois filtré : testez depuis une connexion
-personnelle pour en avoir le cœur net.
+## Configuration
 
-**Vidéo et audio téléchargés séparément**
-ffmpeg est introuvable, or c'est lui qui fusionne les deux flux. Installez-le ou
-faites `pip install -U imageio-ffmpeg`.
+All settings live at the top of `yt_playlist.py`.
 
-**Vidéo muette à la lecture**
-L'audio est en Opus, que certains lecteurs Windows ne décodent pas dans un MP4.
-Le script prend l'audio AAC en priorité pour éviter ça. Si une vidéo reste
-muette, passez `FORCE_AAC` à `True`. Pour vérifier, ouvrez le fichier dans VLC :
-s'il a du son là, c'était bien un souci de codec.
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `QUALITY` | `1080` | Maximum height in pixels. Use `720`, `1440`, `2160`, and so on. |
+| `OUTPUT_DIR` | `"downloads"` | Root folder for downloads, relative to the working directory. |
+| `COOKIES_FILE` | `None` | Path to a `cookies.txt` file. |
+| `COOKIES_FROM_BROWSER` | `None` | Browser name such as `"edge"` or `"firefox"`, read cookies directly. |
+| `FORCE_AAC` | `False` | Re-encode audio to AAC during the merge. |
 
-**`Could not copy Chrome cookie database`**
-Le navigateur est ouvert et sa base de cookies est verrouillée. Fermez-le, ou
-laissez `COOKIES_FROM_BROWSER` à `None` et utilisez plutôt un fichier `cookies.txt`
-via `COOKIES_FILE`.
+### Cookies
 
-## Avertissement
+Leave both cookie settings on `None` to begin with. They are rarely needed once
+Deno is installed. If one specific video stays blocked because it is age-restricted
+or private, export a `cookies.txt` with a browser extension such as
+"Get cookies.txt locally" and set `COOKIES_FILE` to its path.
 
-À utiliser pour des contenus que vous avez le droit de récupérer : vos propres
-vidéos, des contenus sous licence libre, ou avec l'accord de l'auteur. Respectez
-les conditions d'utilisation de YouTube et le droit d'auteur en vigueur chez vous.
+Reading cookies directly from a browser with `COOKIES_FROM_BROWSER` requires the
+browser to be fully closed, since the cookie database is locked while it runs.
 
-Construit autour de [yt-dlp](https://github.com/yt-dlp/yt-dlp) et
-[ffmpeg](https://ffmpeg.org/).
+### Silent video files
+
+Some YouTube streams use the Opus audio codec, which older Windows players cannot
+decode; the file plays but has no sound. Set `FORCE_AAC = True` to re-encode the
+audio track to AAC at 192 kbps during the merge. This costs a little CPU time but
+produces files that play everywhere.
+
+## Troubleshooting
+
+| Symptom | Likely cause and fix |
+| --- | --- |
+| `HTTP Error 403: Forbidden` | Deno is missing or not on `PATH`. Install it and reopen the terminal. |
+| Downloads capped at 720p | ffmpeg was not found, so no separate streams could be merged. Run `pip install -U imageio-ffmpeg`. |
+| Video plays without sound | Opus audio. Set `FORCE_AAC = True`. |
+| `Sign in to confirm your age` | Provide cookies via `COOKIES_FILE`. |
+| Some videos are missing from the folder | They failed and were skipped on purpose; scroll back through the log for the reason. |
+| Extraction errors after a YouTube change | Update yt-dlp: `pip install -U --pre "yt-dlp[default]"`. |
+
+## Notes
+
+The console messages are in French; the source comments are bilingual
+(English and French).
+
+## Legal
+
+This tool is intended for downloading content you own, content published under a
+permissive license, or content you have permission to download. Downloading
+copyrighted material without authorization may violate YouTube's Terms of Service
+and the copyright law of your jurisdiction. You are responsible for how you use it.
+
+## License
+
+Choose a license for your repository (MIT is a common default) and add it here
+along with a `LICENSE` file.
