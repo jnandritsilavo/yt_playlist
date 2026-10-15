@@ -1,32 +1,54 @@
-# yt_playlist
+# YT Playlist Pro
 
-An interactive command-line downloader for YouTube playlists, built on top of
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). It fetches every video of a playlist
-in HD, merges video and audio into a single MP4, and names the files so they stay
-in playlist order.
+*[Version française → README.fr.md](README.fr.md)*
 
-The script is a thin, opinionated wrapper: all the defaults that usually take a
-long command line (format selection, output template, retries, ffmpeg location)
-are already set.
+A desktop application and command-line tool to download YouTube playlists in HD,
+built on top of [yt-dlp](https://github.com/yt-dlp/yt-dlp). Analyze a playlist,
+pick the videos you want, choose a quality, and watch the progress in a clean
+dark or light interface.
+
+The project ships two front ends sharing the same engine (yt-dlp + ffmpeg + Deno):
+
+| File | What it is |
+| --- | --- |
+| `yt_playlist_gui.py` | **Graphical interface (recommended).** No extra dependency: uses Tkinter, bundled with Python. |
+| `yt_playlist.py` | Minimal interactive command-line version, unchanged. |
 
 ## Features
 
-- 1080p by default, with automatic fallback to the best available quality below that limit.
-- Video and audio merged into one MP4 file via ffmpeg.
-- Files numbered `01 - Title.mp4`, `02 - Title.mp4`, and so on, following the playlist order.
-- Each playlist stored in its own folder, named after the playlist.
-- Interactive loop: paste a URL, wait for the download, paste the next one.
-- Resilient by design: a video that fails is skipped instead of aborting the whole playlist.
-- Optional AAC re-encoding for players that cannot decode Opus audio.
-- Optional cookie support for age-restricted or private videos.
+### Graphical interface
+
+- **Analyze before downloading**: lists every video of a playlist with its duration and total length.
+- **Selection**: checkboxes per video, plus *Select all / none / invert*.
+- **Quality choices**: best available, 4K, 2K, 1080p, 720p, 480p, 360p, or **audio only** (MP3 192 kbps / M4A).
+- **Live progress**: per-video bar, overall bar, speed, ETA and a status for each row
+  (waiting, downloading, processing, done, error, cancelled).
+- **Cancel at any time**, without freezing the window; one failing video never stops the rest.
+- **Dark and light themes**, **French and English** interface, switchable on the fly.
+- **Settings remembered** between sessions (`~/.yt_playlist_pro.json`).
+- **Health badges** for ffmpeg and Deno; click one for installation help.
+- **Clipboard detection**: a copied YouTube link is pre-filled when you open the app.
+- Built-in log tab, *Open folder* button, optional AAC audio, cookies file or browser cookies.
+
+### Output (both versions)
+
+- Video and audio merged into a single MP4 through ffmpeg.
+- Files numbered in playlist order, kept even if you only select some videos:
+  `01 - First video.mp4`, `04 - Fourth video.mp4`, ...
+- One folder per playlist, named after the playlist. A single video is saved directly in the output folder.
 
 ## Requirements
 
-- Python 3.8 or newer
-- yt-dlp and imageio-ffmpeg (installed below)
+- Python 3.8 or newer, with Tkinter (included in the official Windows and macOS installers;
+  on Debian/Ubuntu: `sudo apt install python3-tk`)
+- yt-dlp and imageio-ffmpeg
 - Deno, used to solve YouTube's JavaScript challenges
 
-Install the Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+or, to get the latest yt-dlp build:
 
 ```bash
 pip install -U --pre "yt-dlp[default]" imageio-ffmpeg
@@ -57,89 +79,78 @@ curl -fsSL https://deno.land/install.sh | sh
 
 As a last resort, download `deno.exe` from the
 [Deno releases page](https://github.com/denoland/deno/releases) and place it in the
-same folder as the script; the script adds its own directory to `PATH` at startup.
-Reopen your terminal after installing.
+same folder as the scripts; they add their own directory to `PATH` at startup.
+Restart the application after installing.
 
 ### ffmpeg
 
-ffmpeg is used to merge the separate video and audio streams. If a system-wide
-ffmpeg is not found, the script falls back to the binary shipped with
-`imageio-ffmpeg`, so no manual installation is normally required. If neither is
-available, the script still runs but downloads a single pre-muxed stream, which
-usually caps quality at 720p.
+ffmpeg merges the separate video and audio streams and extracts audio. If a
+system-wide ffmpeg is not found, the app falls back to the binary shipped with
+`imageio-ffmpeg`, so no manual installation is normally required. Without any ffmpeg,
+only pre-merged streams are available (usually capped around 720p) and audio
+extraction is disabled.
 
 ## Usage
+
+### Graphical interface
+
+```bash
+python yt_playlist_gui.py
+```
+
+1. Paste a playlist or video URL and click **Analyze** (or press Enter).
+2. Uncheck the videos you do not want.
+3. Choose a quality and an output folder.
+4. Click **Download selection** and follow the progress.
+
+Keyboard: `Enter` in the URL field analyzes; `Space` toggles the highlighted row.
+
+### Command line
 
 ```bash
 python yt_playlist.py
 ```
 
-The script prints a short diagnostic (ffmpeg, Deno, cookies), then waits for input:
+Paste a URL, press Enter, and the script downloads the whole playlist, then asks
+for the next one. Type `q`, `quit`, `exit`, or submit an empty line to leave.
+Settings live at the top of `yt_playlist.py` (`QUALITY`, `OUTPUT_DIR`, `COOKIES_FILE`,
+`COOKIES_FROM_BROWSER`, `FORCE_AAC`); console messages are in French.
 
-```
-URL >  https://www.youtube.com/playlist?list=PL...
-```
+## Options reference (GUI)
 
-Press Enter to start. When the download finishes, the prompt returns for the next
-URL. Type `q`, `quit`, `exit`, or submit an empty line to leave. `Ctrl+C` during a
-download cancels that download only and returns to the prompt.
+| Option | Purpose |
+| --- | --- |
+| Quality | Maximum video height, or audio-only extraction (MP3 / M4A). |
+| Folder | Root output folder. Defaults to `~/Downloads/yt_playlist`. |
+| AAC audio | Re-encode audio to AAC 192 kbps during the merge, for players that cannot decode Opus (silent files). Applies to video downloads only. |
+| Cookies file | Path to a `cookies.txt` exported with a browser extension such as "Get cookies.txt locally". |
+| Browser cookies | Read cookies directly from Edge, Chrome, Firefox, Brave, Opera or Safari. The browser must be fully closed. |
 
-Single video URLs work too; they are simply treated as a playlist of one.
-
-## Output layout
-
-```
-downloads/
-  My Playlist Name/
-    01 - First video.mp4
-    02 - Second video.mp4
-    03 - Third video.mp4
-```
-
-## Configuration
-
-All settings live at the top of `yt_playlist.py`.
-
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `QUALITY` | `1080` | Maximum height in pixels. Use `720`, `1440`, `2160`, and so on. |
-| `OUTPUT_DIR` | `"downloads"` | Root folder for downloads, relative to the working directory. |
-| `COOKIES_FILE` | `None` | Path to a `cookies.txt` file. |
-| `COOKIES_FROM_BROWSER` | `None` | Browser name such as `"edge"` or `"firefox"`, read cookies directly. |
-| `FORCE_AAC` | `False` | Re-encode audio to AAC during the merge. |
-
-### Cookies
-
-Leave both cookie settings on `None` to begin with. They are rarely needed once
-Deno is installed. If one specific video stays blocked because it is age-restricted
-or private, export a `cookies.txt` with a browser extension such as
-"Get cookies.txt locally" and set `COOKIES_FILE` to its path.
-
-Reading cookies directly from a browser with `COOKIES_FROM_BROWSER` requires the
-browser to be fully closed, since the cookie database is locked while it runs.
-
-### Silent video files
-
-Some YouTube streams use the Opus audio codec, which older Windows players cannot
-decode; the file plays but has no sound. Set `FORCE_AAC = True` to re-encode the
-audio track to AAC at 192 kbps during the merge. This costs a little CPU time but
-produces files that play everywhere.
+Leave both cookie options empty to begin with; they are rarely needed once Deno is installed.
+Use them for age-restricted or private videos.
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 | --- | --- |
-| `HTTP Error 403: Forbidden` | Deno is missing or not on `PATH`. Install it and reopen the terminal. |
-| Downloads capped at 720p | ffmpeg was not found, so no separate streams could be merged. Run `pip install -U imageio-ffmpeg`. |
-| Video plays without sound | Opus audio. Set `FORCE_AAC = True`. |
-| `Sign in to confirm your age` | Provide cookies via `COOKIES_FILE`. |
-| Some videos are missing from the folder | They failed and were skipped on purpose; scroll back through the log for the reason. |
+| `HTTP Error 403: Forbidden` | Deno is missing or not on `PATH` (red **Deno** badge). Install it and restart the app. |
+| Downloads capped at 720p | ffmpeg not found (red **ffmpeg** badge). Run `pip install -U imageio-ffmpeg`. |
+| Video plays without sound | Opus audio. Tick **AAC audio** (or set `FORCE_AAC = True` in the CLI). |
+| `Sign in to confirm your age` | Provide cookies (file or browser). |
+| Analysis fails or finds no video | Check the URL is a public or unlisted playlist/video; see the **Log** tab for the reason. |
+| Some videos show *Error* | They failed and were skipped on purpose. The **Log** tab explains why; re-run to retry only those. |
 | Extraction errors after a YouTube change | Update yt-dlp: `pip install -U --pre "yt-dlp[default]"`. |
+| `No module named '_tkinter'` | Install Tkinter: `sudo apt install python3-tk` (Debian/Ubuntu). |
 
-## Notes
+## Project layout
 
-The console messages are in French; the source comments are bilingual
-(English and French).
+```
+yt_playlist_gui.py   Graphical interface (Tkinter)
+yt_playlist.py       Command-line version
+requirements.txt     Python dependencies
+README.md            This file (English)
+README.fr.md         French version
+```
 
 ## Legal
 
